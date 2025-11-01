@@ -3,3 +3,7 @@ pandas
 numpy
 pulp
 openpyxl
+streamlit
+folium
+streamlit-folium
+geopy
