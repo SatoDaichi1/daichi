@@ -9,7 +9,7 @@ st.title("👩‍💼 シフト自動作成アプリ")
 st.write("希望勤務日数・希望休を入力して自動でシフトを作成します。")
 
 # --- 基本設定 ---
-num_staff = st.number_input("アルバイト人数", min_value=3, max_value=30, value=10)
+num_staff = st.number_input("アルバイト人数", min_value=3, max_value=30, value=18)
 num_days = st.number_input("日数", min_value=7, max_value=31, value=28)
 
 # 月初めの曜日入力
@@ -142,3 +142,4 @@ if st.button("🚀 シフトを作成"):
             file_name=output_file,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
