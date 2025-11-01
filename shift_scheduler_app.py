@@ -5,7 +5,7 @@ from pulp import *
 
 st.set_page_config(page_title="シフト自動作成", layout="wide")
 
-st.title("👩‍💼 清掃さんシフト自動作成アプリ")
+st.title("👩‍💼 清掃さんシフト自動作成")
 st.write("希望勤務日数・希望休を入力して自動でシフトを作成します。")
 
 # --- 基本設定 ---
@@ -142,5 +142,6 @@ if st.button("🚀 シフトを作成"):
             file_name=output_file,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
