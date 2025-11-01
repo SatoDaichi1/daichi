@@ -10,7 +10,7 @@ st.write("希望勤務日数・希望休を入力して自動でシフトを作�
 
 # --- 基本設定 ---
 num_staff = st.number_input("アルバイト人数", min_value=3, max_value=30, value=18)
-num_days = st.number_input("日数", min_value=7, max_value=31, value=28)
+num_days = st.number_input("日数", min_value=7, max_value=31, value=30)
 
 # 月初めの曜日入力
 first_weekday = st.selectbox("月初めの曜日を選択", ["月", "火", "水", "木", "金", "土", "日"])
@@ -142,6 +142,7 @@ if st.button("🚀 シフトを作成"):
             file_name=output_file,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
