@@ -130,7 +130,7 @@ if st.button("🚀 シフトを作成"):
     st.dataframe(df)
 
     # Excel出力
-    output_file = "shift_schedule_final.xlsx"
+    output_file = "shift_schedule.xlsx"
     with pd.ExcelWriter(output_file) as writer:
         df.to_excel(writer, sheet_name="シフト表")
         summary.to_excel(writer, sheet_name="勤務日数まとめ")
@@ -142,6 +142,7 @@ if st.button("🚀 シフトを作成"):
             file_name=output_file,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
