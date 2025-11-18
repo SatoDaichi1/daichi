@@ -30,11 +30,11 @@ for wd in weekday_labels:
     )
 
 # --- 毎日2人出勤が必要な特定バイト選択 ---
-st.subheader("毎日2人出勤が必要なアルバイト")
+st.subheader("チェッカーさんを指定")
 special_workers = st.multiselect(
     "毎日必ず出勤する必要がある人（2名まで推奨）",
     options=staff,
-    default=staff[:2] if num_staff >= 2 else []
+    default=staff[:3] if num_staff >= 2 else []
 )
 
 special_worker_indices = [staff.index(s) for s in special_workers]
@@ -112,7 +112,7 @@ if st.button("🚀 シフトを作成"):
     # --- 毎日2人出勤が必要な特定バイト ---
     if len(special_worker_indices) > 0:
         for j in D:
-            prob += lpSum(x[i][j]["d"] for i in special_worker_indices) == min(2, len(special_worker_indices))
+            prob += lpSum(x[i][j]["d"] for i in special_worker_indices) >= min(2, len(special_worker_indices))
 
     # --- 希望休（日付）の反映 ---
     for i in P:
@@ -187,5 +187,6 @@ if st.button("🚀 シフトを作成"):
             file_name=output_file,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
