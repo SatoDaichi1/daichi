@@ -6,62 +6,71 @@ from pulp import *
 st.set_page_config(page_title="シフト自動作成", layout="wide")
 
 st.title("👩‍💼 清掃さんシフト自動作成")
-st.write("希望勤務日数・希望休を入力して自動でシフトを作成します。")
+st.write("希望勤務日数・希望休・勤務不可曜日を入力して自動でシフトを作成します。")
 
 # --- 基本設定 ---
 num_staff = st.number_input("アルバイト人数", min_value=3, max_value=30, value=18)
 num_days = st.number_input("日数", min_value=7, max_value=31, value=30)
 
 # 月初めの曜日入力
-first_weekday = st.selectbox("月初めの曜日を選択", ["月", "火", "水", "木", "金", "土", "日"])
+weekday_labels = ["月", "火", "水", "木", "金", "土", "日"]
+first_weekday = st.selectbox("月初めの曜日を選択", weekday_labels)
 
 staff = [f"バイト{i+1}" for i in range(num_staff)]
 days = [f"Day{j+1}" for j in range(num_days)]
 
 # --- 曜日ごとの必要人数入力 ---
 st.subheader("曜日ごとの必要人数")
-weekday_labels = ["月", "火", "水", "木", "金", "土", "日"]
 weekday_staff = {}
-for i, wd in enumerate(weekday_labels):
+for wd in weekday_labels:
     default_val = 9 if wd not in ["土", "日"] else (11 if wd == "土" else 12)
-    weekday_staff[i] = st.number_input(
+    weekday_staff[weekday_labels.index(wd)] = st.number_input(
         f"{wd}曜日の必要人数",
-        min_value=1, max_value=num_staff,
-        value=default_val
+        min_value=1, max_value=num_staff, value=default_val
     )
 
-# --- 特定バイト（毎日2人必須） ---
-st.subheader("毎日必ず2人出勤が必要なバイトを選択（複数可）")
+# --- 毎日2人出勤が必要な特定バイト選択 ---
+st.subheader("毎日2人出勤が必要なアルバイト")
 special_workers = st.multiselect(
-    "※選んだ人の中から毎日ちょうど2名が出勤になります",
-    staff,
-    default=staff[:3]  # デフォルトは1〜3番
+    "毎日必ず出勤する必要がある人（2名まで推奨）",
+    options=staff,
+    default=staff[:2] if num_staff >= 2 else []
 )
 
 special_worker_indices = [staff.index(s) for s in special_workers]
 
 # --- 希望勤務日数 ---
-st.subheader("各バイトの希望勤務日数")
-desired_days_input = {}
-for s in staff:
-    desired_days_input[s] = st.number_input(
-        f"{s} の希望勤務日数",
-        min_value=1,
-        max_value=num_days,
-        value=15
-    )
+st.subheader("希望勤務日数（各バイト）")
+desired_days_input = {
+    s: st.number_input(f"{s} の希望勤務日数", min_value=1, max_value=num_days, value=15)
+    for s in staff
+}
 
-# --- 希望休入力（複数選択） ---
-st.subheader("希望休（複数選択）")
+# --- 希望休 ＆ 勤務不可曜日 ---
+st.subheader("希望休（日付）と勤務不可曜日（毎週）")
+
 holiday_requests_input = {}
-for s in staff:
-    holiday_requests_input[s] = st.multiselect(
-        f"{s} の希望休を選択（Day番号）",
-        options=list(range(1, num_days+1)),
-    )
-    holiday_requests_input[s] = [d-1 for d in holiday_requests_input[s]]  # 0始まりに変換
+week_off_requests_input = {}
 
-# --- シフト作成ボタン ---
+for s in staff:
+    c1, c2 = st.columns(2)
+    with c1:
+        holiday_requests_input[s] = st.multiselect(
+            f"{s} の希望休（日付）",
+            options=list(range(1, num_days + 1)),
+            default=[]
+        )
+    with c2:
+        week_off_requests_input[s] = st.multiselect(
+            f"{s} の勤務不可曜日（毎週固定で休み）",
+            options=weekday_labels,
+            default=[]
+        )
+
+# ======================================================================
+#                           シフト作成開始
+# ======================================================================
+
 if st.button("🚀 シフトを作成"):
     st.info("最適化中です... 数秒かかる場合があります。")
 
@@ -71,47 +80,61 @@ if st.button("🚀 シフトを作成"):
     S = {"d"}
 
     desired_days = {i: desired_days_input[f"バイト{i+1}"] for i in P}
-    holiday_requests = {i: holiday_requests_input[f"バイト{i+1}"] for i in P}
+    holiday_requests = {
+        i: [d-1 for d in holiday_requests_input[f"バイト{i+1}"]]
+        for i in P
+    }
+
+    weekday_map = {wd: i for i, wd in enumerate(weekday_labels)}
+    first_wd_index = weekday_map[first_weekday]
 
     # --- モデル ---
     x = LpVariable.dicts("x", (P, D, S), cat=LpBinary)
-    t_plus = LpVariable.dicts("t_plus", P, lowBound=0)
-    t_minus = LpVariable.dicts("t_minus", P, lowBound=0)
+    t_plus = LpVariable.dicts("t_plus", P, lowBound=0, cat=LpContinuous)
+    t_minus = LpVariable.dicts("t_minus", P, lowBound=0, cat=LpContinuous)
 
     prob = LpProblem("Shift_Scheduling_WorkloadBalance", LpMinimize)
 
     workdays = {i: lpSum(x[i][j]["d"] for j in D) for i in P}
 
-    # 目的関数
+    # 目的関数：希望との差を最小化
     prob += lpSum(t_plus[i] + t_minus[i] for i in P)
 
-    # 希望勤務日数との差
+    # 希望勤務日数との誤差
     for i in P:
         prob += workdays[i] - desired_days[i] == t_plus[i] - t_minus[i]
 
-    # 曜日計算
-    first_idx = weekday_labels.index(first_weekday)
-
+    # --- 各日の必要人数（曜日計算）
     for j in D:
-        wd = (first_idx + j) % 7
-        prob += lpSum(x[i][j]["d"] for i in P) == weekday_staff[wd]
+        weekday_index = (first_wd_index + j) % 7
+        prob += lpSum(x[i][j]["d"] for i in P) == weekday_staff[weekday_index]
 
-    # 特定バイトの中から2人が毎日出勤
-    if len(special_worker_indices) >= 2:
+    # --- 毎日2人出勤が必要な特定バイト ---
+    if len(special_worker_indices) > 0:
         for j in D:
-            prob += lpSum(x[i][j]["d"] for i in special_worker_indices) == 2
+            prob += lpSum(x[i][j]["d"] for i in special_worker_indices) == min(2, len(special_worker_indices))
 
-    # 希望休 → 出勤不可
+    # --- 希望休（日付）の反映 ---
     for i in P:
         for j in holiday_requests[i]:
-            prob += x[i][j]["d"] == 0
+            if j < num_days:
+                prob += x[i][j]["d"] == 0
 
-    # 5連勤禁止
+    # --- 勤務不可曜日（毎週固定） ---
+    for i in P:
+        for j in D:
+            weekday_index = (first_wd_index + j) % 7
+            wd_name = weekday_labels[weekday_index]
+
+            if wd_name in week_off_requests_input[f"バイト{i+1}"]:
+                prob += x[i][j]["d"] == 0
+
+    # --- 5連勤禁止 ---
     for i in P:
         for j in range(num_days - 4):
             prob += lpSum(x[i][j+k]["d"] for k in range(5)) <= 4
 
-    # 上限21日
+    # --- 上限21日 ---
     for i in P:
         prob += workdays[i] <= 21
 
@@ -128,7 +151,7 @@ if st.button("🚀 シフトを作成"):
             if value(x[i][j]["d"]) == 1:
                 row.append("◎" if i in special_worker_indices else "〇")
             else:
-                row.append("休" if j in holiday_requests.get(i, []) else "×")
+                row.append("休" if j in holiday_requests[i] else "×")
         data.append(row)
         actual_days[i] = sum(value(x[i][j]["d"]) for j in D)
 
@@ -140,14 +163,15 @@ if st.button("🚀 シフトを作成"):
     total_row.append(sum(total_row))
     df.loc["出勤人数"] = total_row
 
-    # 勤務日数まとめ
+    # 勤務日数サマリー
     summary = pd.DataFrame({
         "希望勤務日数": [desired_days[i] for i in P],
-        "実際の勤務日数": [actual_days[i] for i in P],
+        "実際": [actual_days[i] for i in P],
         "差": [actual_days[i] - desired_days[i] for i in P]
     }, index=staff)
 
-    st.success("✅ シフト作成完了！")
+    # --- 出力 ---
+    st.success("✨ シフト作成完了！")
     st.dataframe(df)
 
     # Excel出力
@@ -158,11 +182,10 @@ if st.button("🚀 シフトを作成"):
 
     with open(output_file, "rb") as f:
         st.download_button(
-            label="📥 Excelをダウンロード",
+            label="📥 Excelダウンロード",
             data=f,
             file_name=output_file,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-
 
 
