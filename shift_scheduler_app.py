@@ -32,7 +32,6 @@ for wd in weekday_labels:
 # --- 毎日2人出勤が必要な特定バイト選択 ---
 st.subheader("チェッカーさんを指定")
 special_workers = st.multiselect(
-    ,
     options=staff,
     default=staff[:3] if num_staff >= 2 else []
 )
@@ -187,6 +186,7 @@ if st.button("🚀 シフトを作成"):
             file_name=output_file,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
